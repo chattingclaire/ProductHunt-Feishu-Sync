@@ -25,7 +25,7 @@ and IM notification after each sync.
 
 ## Agent Instructions — How to Use This Skill
 
-When this skill is triggered, follow these steps:
+When this skill is triggered, follow these steps in order.
 
 ### 1. Locate the scripts
 
@@ -35,35 +35,90 @@ SKILL_DIR=~/.claude/skills/producthunt-feishu-sync/scripts
 
 All Python scripts are bundled here after `claude skill install`.
 
-### 2. Check / set up credentials
+### 2. Check Google Chrome is installed
 
-Check if `$SKILL_DIR/.env` exists and is filled in.
-If not, copy the template and ask the user to fill in the values:
+DrissionPage drives a **real Chrome browser** for Stage 2. Without it, Followers,
+Company Info, and team members won't be scraped.
+
+```bash
+# macOS
+/Applications/Google\ Chrome.app/Contents/MacOS/Google\ Chrome --version
+
+# Linux
+google-chrome --version || chromium-browser --version
+```
+
+If Chrome is missing, tell the user:
+> "Please install Google Chrome from https://www.google.com/chrome/ and re-run."
+
+### 3. Check / set up credentials
+
+Check if `$SKILL_DIR/.env` exists and all required keys are filled in.
+If not, copy the template and walk the user through each value:
 
 ```bash
 cp $SKILL_DIR/.env.example $SKILL_DIR/.env
-# then edit .env with user's credentials
 ```
 
-Required variables:
+---
 
-| Variable | Where to get it |
+**How to get each credential:**
+
+#### FEISHU_APP_ID + FEISHU_APP_SECRET
+1. Go to [Feishu Open Platform](https://open.feishu.cn/app) (or Lark: open.larksuite.com)
+2. Create an app (or open an existing one)
+3. **Credentials & Basic Info** → copy `App ID` and `App Secret`
+4. Enable permissions: **Bitable** read/write + **Send messages**
+5. Add the app to your Bitable workspace so it has table access
+
+#### FEISHU_TABLE_APP_ID + FEISHU_TABLE_ID
+Open your Feishu Bitable in the browser. The URL looks like:
+```
+https://xxx.feishu.cn/base/DwkHb0KWHajXXXXX?table=tblXXXXXX&view=...
+```
+- `FEISHU_TABLE_APP_ID` = the part after `/base/` → e.g. `DwkHb0KWHajXXXXX`
+- `FEISHU_TABLE_ID` = the `table=` param → e.g. `tblXXXXXX`
+
+#### FEISHU_RECEIVER_OPEN_ID
+The Open ID of whoever should receive the sync completion IM notification.
+Find it in Feishu Open Platform → **User Management** → search the user → copy Open ID.
+Alternatively ask the user to run:
+```
+GET https://open.feishu.cn/open-apis/contact/v3/users/me
+```
+with their app token to get their own Open ID.
+
+#### PH_COOKIES (important — bypasses Cloudflare)
+1. Open [producthunt.com](https://www.producthunt.com) in Chrome and **log in**
+2. Press `F12` → **Application** tab → **Cookies** → `https://www.producthunt.com`
+3. Copy these key cookies: `_producthunt_session`, `cf_clearance`, `__cf_bm`
+4. Paste as a single string: `key1=value1; key2=value2; ...`
+
+> If you see 403 errors, the `cf_clearance` cookie is stale — repeat the steps above.
+
+---
+
+### 4. Create Feishu Bitable fields (first run only)
+
+Download `assets/feishu_bitable_template.xlsx` from the repo and import into Feishu Bitable.
+After import, manually set these field types:
+
+| Field | Type |
 |---|---|
-| `FEISHU_APP_ID` | Feishu developer console → app → Credentials |
-| `FEISHU_APP_SECRET` | same |
-| `FEISHU_TABLE_APP_ID` | Bitable URL → `BAS…` segment |
-| `FEISHU_TABLE_ID` | Bitable URL → `tbl…` segment |
-| `FEISHU_RECEIVER_OPEN_ID` | Open ID of the IM notification recipient |
-| `PH_COOKIES` | Chrome → F12 → Application → Cookies → copy all as `key=val; key=val` |
+| `Upvote` | Number |
+| `Launch_tags` | Multi-select |
+| `PH_Link` / `Forum` / `Company_Info` | URL |
 
-### 3. Install Python dependencies (first run only)
+All other fields stay as Text.
+
+### 5. Install Python dependencies (first run only)
 
 ```bash
 cd $SKILL_DIR
 pip install -r requirements.txt
 ```
 
-### 4. Run the sync
+### 6. Run the sync
 
 ```bash
 cd $SKILL_DIR
