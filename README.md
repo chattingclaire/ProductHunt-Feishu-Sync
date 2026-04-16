@@ -1,4 +1,4 @@
-# ProductHunt Weekly Tops → Feishu Bitable
+# ProductHunt Leaderboard → Feishu Bitable
 
 [English](#english) | [中文](#中文)
 
@@ -7,60 +7,71 @@
 <a name="english"></a>
 # English
 
-Automatically scrape the **ProductHunt weekly leaderboard** and sync every product into a **Feishu (Lark) Bitable** table — deduplication, team-member enrichment, and IM notifications included.
+Scrape any **ProductHunt leaderboard** (weekly by default) and sync every product into a **Feishu (Lark) Bitable** table — auto-dedup, team enrichment, and IM notifications.
 
-**917 records synced across 40+ weeks. Zero duplicates.**
+## Quick Start
 
----
-
-## Quickstart with Claude Code Skill
-
-The easiest way to use this project is with the included Claude Code skill. Install it once and your Claude agent handles the rest — running syncs, configuring credentials, debugging issues.
-
-### 1. Install the skill
+**1. Install the Claude Code skill**
 
 ```bash
 claude skill install producthunt-feishu-sync.skill
 ```
 
-### 2. Set up credentials
-
-Your agent will walk you through this, or do it manually:
+**2. Copy and fill in credentials**
 
 ```bash
 cp .env.example .env
-# Fill in your credentials (see below)
 ```
 
-The only required values:
+Open `.env` and fill in:
 
-| Variable | Where to find it |
-|---|---|
-| `FEISHU_APP_ID` | Feishu developer console → your app → Credentials |
-| `FEISHU_APP_SECRET` | Same page as above |
-| `FEISHU_TABLE_APP_ID` | Open your Bitable → copy the `BASxxx…` token from the URL |
-| `FEISHU_TABLE_ID` | The `tblXXX` segment in the same URL |
-| `FEISHU_RECEIVER_OPEN_ID` | Feishu developer console → User Info API |
-| `PH_COOKIES` | Chrome → F12 → Application → Cookies → producthunt.com → copy all |
+```
+FEISHU_APP_ID=...          # Feishu developer console → your app → Credentials
+FEISHU_APP_SECRET=...
+FEISHU_TABLE_APP_ID=...    # BASxxx… from your Bitable URL
+FEISHU_TABLE_ID=...        # tblXXX from your Bitable URL
+FEISHU_RECEIVER_OPEN_ID=...
+PH_COOKIES=...             # Chrome → F12 → Application → Cookies → copy all
+```
 
-> `PH_COOKIES` is strongly recommended — it lets the scraper bypass Cloudflare 403 errors.
-
-### 3. Create Feishu Bitable fields
-
-Add these fields to your table (names are **case-sensitive**):
+**3. Create Feishu Bitable fields** (case-sensitive)
 
 `PH_Id` · `Product_Name` · `Brief` · `Description` · `Upvote` · `Launch_tags` · `team_members` · `PH_Link` · `Forum` · `Followers` · `Company_Info` · `Week_Range` · `Last_Updated`
 
-### 4. Tell your agent to sync
+**4. Ask your agent**
 
-Once the skill is installed, just describe what you want:
+```
+"Run the ProductHunt weekly sync"
+"Sync last week's PH leaderboard to Feishu"
+"team members are empty, fix it"
+```
 
-> *"Run the ProductHunt weekly sync"*
-> *"Sync last week's PH leaderboard to Feishu"*
-> *"The team members are empty, fix it"*
-> *"PH没同步，帮我跑一下"*
+---
 
-Your agent reads the skill, runs `wokflow.py`, and handles errors automatically.
+## Which Leaderboard to Scrape
+
+By default the script targets the **current ISO week** leaderboard automatically.
+You can point it at any leaderboard by setting `PH_WEEKLY_URL` in `.env`:
+
+| Leaderboard | URL format | Example |
+|---|---|---|
+| Weekly (default) | `/leaderboard/weekly/YYYY/WW` | `…/weekly/2025/44` |
+| Specific week | `/leaderboard/weekly/YYYY/WW` | `…/weekly/2025/10` |
+| Daily | `/leaderboard/daily/YYYY/MM/DD` | `…/daily/2025/11/25` |
+| Monthly | `/leaderboard/monthly/YYYY/MM` | `…/monthly/2025/11` |
+
+```bash
+# Last week
+PH_WEEK_OFFSET=-1 python wokflow.py --once
+
+# Specific week
+PH_WEEKLY_URL=https://www.producthunt.com/leaderboard/weekly/2025/10 python wokflow.py --once
+
+# Daily leaderboard
+PH_WEEKLY_URL=https://www.producthunt.com/leaderboard/daily/2025/11/25 python wokflow.py --once
+```
+
+> **Note:** The script is optimized for weekly leaderboards. Daily and monthly URLs should work since PH uses the same page structure, but `Week_Range` and related fields will reflect the weekly ISO calculation regardless of the URL you use.
 
 ---
 
@@ -78,33 +89,23 @@ Your agent reads the skill, runs `wokflow.py`, and handles errors automatically.
 
 ## How It Works
 
-Data is collected in **two stages**:
+**Stage 1 — Leaderboard page (Apollo SSR JSON)**
+PH leaderboard pages embed a full data snapshot. The script reads it directly — no API key needed.
+→ `Product_Name` · `Brief` · `Description` · `Upvote` · `Launch_tags` · `team_members` · `PH_Link` · `Forum` · `PH_Id` · `Week_Range`
 
-**Stage 1 — Weekly leaderboard page (Apollo SSR JSON)**
-The PH weekly page embeds a full data snapshot. Scripts read it directly — no API key needed.
-→ Fills: `Product_Name`, `Brief`, `Description`, `Upvote`, `Launch_tags`, `team_members`, `PH_Link`, `Forum`, `PH_Id`, `Week_Range`
-
-**Stage 2 — Individual product pages (DrissionPage / real Chromium)**
+**Stage 2 — Per-product pages (DrissionPage / real Chromium)**
 Three fields aren't in the leaderboard data, so the script opens each product page in a real browser.
-→ Fills: `Followers`, `Company_Info`, `team_members` (enriched from `/makers` sub-page)
+→ `Followers` · `Company_Info` · `team_members` (enriched from `/makers` sub-page)
 
 ---
 
 ## Manual Usage
 
-If you prefer to run scripts directly without the agent:
-
 ```bash
-git clone https://github.com/chattingclaire/ProductHunt_WeeklyTops.git
-cd ProductHunt_WeeklyTops
-python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
-
 python wokflow.py --once              # run immediately
 python wokflow.py                     # daily scheduler (08:00 Asia/Shanghai)
-PH_WEEK_OFFSET=-1 python wokflow.py --once   # last week
-
-python scrape_team_drission.py --limit 20    # enrich team members
+python scrape_team_drission.py --limit 20   # enrich team members only
 ```
 
 ---
@@ -113,78 +114,86 @@ python scrape_team_drission.py --limit 20    # enrich team members
 
 | Problem | Fix |
 |---|---|
-| Cloudflare 403 | Add fresh `PH_COOKIES` to `.env` (include `cf_clearance`) |
+| Cloudflare 403 | Refresh `PH_COOKIES` in `.env` (include `cf_clearance`) |
 | Field missing in Feishu | Create the field — names are case-sensitive |
 | Feishu auth error | Check app ID/secret; enable Bitable + Message permissions |
-| `team_members` empty | PH may have updated its page — ask your agent to check the selectors |
-
-When in doubt, just tell your agent what's wrong. The skill contains the full debugging guide.
+| `team_members` empty | PH may have updated its page structure — ask your agent to check |
 
 ---
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+MIT
 
 ---
 
 <a name="中文"></a>
 # 中文
 
-自动抓取 **ProductHunt 每周榜单**，同步到**飞书多维表格**，支持去重、团队成员补充爬取和 IM 消息通知。
+抓取 **ProductHunt 任意榜单**（默认周榜），将每个产品同步到**飞书多维表格**，支持去重、团队成员补充爬取和 IM 消息通知。
 
-**已同步 40+ 周、917 条记录，零重复。**
+## 快速开始
 
----
-
-## 用 Claude Code Skill 快速上手
-
-最简单的用法是安装仓库内附的 Claude Code skill。装好之后，你的 Claude agent 负责跑同步、配置密钥、处理报错，不需要你手动操作。
-
-### 1. 安装 skill
+**1. 安装 Claude Code Skill**
 
 ```bash
 claude skill install producthunt-feishu-sync.skill
 ```
 
-### 2. 填写密钥
-
-agent 会引导你完成，或者手动配置：
+**2. 填写密钥**
 
 ```bash
 cp .env.example .env
-# 填入你的密钥（见下表）
 ```
 
-必填项：
+打开 `.env` 填入：
 
-| 变量名 | 在哪里找 |
-|---|---|
-| `FEISHU_APP_ID` | 飞书开发者后台 → 你的应用 → 凭证与基础信息 |
-| `FEISHU_APP_SECRET` | 同上 |
-| `FEISHU_TABLE_APP_ID` | 打开多维表格 → URL 里的 `BASxxx…` |
-| `FEISHU_TABLE_ID` | 同 URL 里的 `tblXXX` |
-| `FEISHU_RECEIVER_OPEN_ID` | 飞书开发者后台 → 用户信息 API |
-| `PH_COOKIES` | Chrome → F12 → Application → Cookies → producthunt.com → 全部复制 |
+```
+FEISHU_APP_ID=...          # 飞书开发者后台 → 你的应用 → 凭证与基础信息
+FEISHU_APP_SECRET=...
+FEISHU_TABLE_APP_ID=...    # 多维表格 URL 里的 BASxxx…
+FEISHU_TABLE_ID=...        # 多维表格 URL 里的 tblXXX
+FEISHU_RECEIVER_OPEN_ID=...
+PH_COOKIES=...             # Chrome → F12 → Application → Cookies → 全部复制
+```
 
-> 强烈推荐填 `PH_COOKIES`，可以绕过 Cloudflare 403 限制。
-
-### 3. 建飞书多维表格字段
-
-在你的数据表中添加以下字段（**大小写完全一致**）：
+**3. 建飞书多维表格字段**（大小写完全一致）
 
 `PH_Id` · `Product_Name` · `Brief` · `Description` · `Upvote` · `Launch_tags` · `team_members` · `PH_Link` · `Forum` · `Followers` · `Company_Info` · `Week_Range` · `Last_Updated`
 
-### 4. 让 agent 去跑
+**4. 告诉你的 agent**
 
-skill 装好之后，直接说你想做什么：
+```
+"帮我跑一下 PH 周榜同步"
+"同步上周的 ProductHunt 榜单到飞书"
+"team members 都是空的，帮我修一下"
+```
 
-> *"帮我跑一下 ProductHunt 周榜同步"*
-> *"同步上周的 PH 榜单到飞书"*
-> *"team members 都是空的，帮我修一下"*
-> *"Run the PH weekly sync"*
+---
 
-agent 会读取 skill、运行脚本、自动处理报错。
+## 抓哪个榜单
+
+默认自动抓**当前 ISO 周的周榜**。在 `.env` 里设置 `PH_WEEKLY_URL` 可以切换任意榜单：
+
+| 榜单类型 | URL 格式 | 示例 |
+|---|---|---|
+| 周榜（默认） | `/leaderboard/weekly/YYYY/WW` | `…/weekly/2025/44` |
+| 指定某周 | `/leaderboard/weekly/YYYY/WW` | `…/weekly/2025/10` |
+| 日榜 | `/leaderboard/daily/YYYY/MM/DD` | `…/daily/2025/11/25` |
+| 月榜 | `/leaderboard/monthly/YYYY/MM` | `…/monthly/2025/11` |
+
+```bash
+# 上周
+PH_WEEK_OFFSET=-1 python wokflow.py --once
+
+# 指定某周
+PH_WEEKLY_URL=https://www.producthunt.com/leaderboard/weekly/2025/10 python wokflow.py --once
+
+# 日榜
+PH_WEEKLY_URL=https://www.producthunt.com/leaderboard/daily/2025/11/25 python wokflow.py --once
+```
+
+> **说明：** 脚本针对周榜优化，日榜和月榜因为 PH 页面结构相同应该也可以用，但 `Week_Range` 等字段仍按 ISO 周计算。
 
 ---
 
@@ -202,33 +211,23 @@ agent 会读取 skill、运行脚本、自动处理报错。
 
 ## 工作原理
 
-数据分 **两个阶段** 采集：
-
-**阶段一 — 周榜页面 Apollo SSR JSON**
-周榜页面内嵌完整数据快照，脚本直接读取，无需 API Key。
-→ 填充：`Product_Name`、`Brief`、`Description`、`Upvote`、`Launch_tags`、`team_members`、`PH_Link`、`Forum`、`PH_Id`、`Week_Range`
+**阶段一 — 榜单页面 Apollo SSR JSON**
+PH 榜单页面内嵌完整数据快照，脚本直接读取，无需 API Key。
+→ `Product_Name` · `Brief` · `Description` · `Upvote` · `Launch_tags` · `team_members` · `PH_Link` · `Forum` · `PH_Id` · `Week_Range`
 
 **阶段二 — 产品独立页面（DrissionPage 真实 Chromium）**
-三个字段不在周榜数据中，脚本用真实浏览器逐页抓取。
-→ 填充：`Followers`、`Company_Info`、`team_members`（来自 `/makers` 子页面的完整版）
+三个字段不在榜单数据中，脚本用真实浏览器逐页抓取。
+→ `Followers` · `Company_Info` · `team_members`（来自 `/makers` 子页面的完整版）
 
 ---
 
 ## 手动运行
 
-如果想不通过 agent 直接跑脚本：
-
 ```bash
-git clone https://github.com/chattingclaire/ProductHunt_WeeklyTops.git
-cd ProductHunt_WeeklyTops
-python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
-
 python wokflow.py --once               # 立即执行一次
 python wokflow.py                      # 每天 08:00 定时任务
-PH_WEEK_OFFSET=-1 python wokflow.py --once    # 上周数据
-
-python scrape_team_drission.py --limit 20     # 补爬团队成员
+python scrape_team_drission.py --limit 20    # 只补爬团队成员
 ```
 
 ---
@@ -237,15 +236,13 @@ python scrape_team_drission.py --limit 20     # 补爬团队成员
 
 | 问题 | 解决方法 |
 |---|---|
-| Cloudflare 403 | 补充 `PH_COOKIES`（确保包含 `cf_clearance`） |
+| Cloudflare 403 | 刷新 `.env` 里的 `PH_COOKIES`（包含 `cf_clearance`） |
 | 飞书字段找不到 | 建立缺失字段，注意大小写 |
 | 飞书 Token 报错 | 检查 App ID/Secret，开通多维表格 + 消息权限 |
-| `team_members` 为空 | PH 可能改版了，让 agent 帮你检查选择器 |
-
-遇到问题直接告诉 agent 哪里不对，skill 里包含完整的调试指南。
+| `team_members` 为空 | PH 可能改版，让 agent 帮你检查选择器 |
 
 ---
 
 ## License
 
-MIT — 详见 [LICENSE](LICENSE)。
+MIT
