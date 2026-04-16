@@ -14,7 +14,7 @@ description: >
 
 # ProductHunt Weekly → Feishu Bitable Sync
 
-**Project repo:** https://github.com/chattingclaire/ProductHunt_WeeklyTops
+**Project repo:** https://github.com/chattingclaire/ProductHunt-Feishu-Sync
 
 Automatically scrapes the ProductHunt weekly leaderboard and syncs it into a
 Feishu (Lark) Bitable table. Deduplicates by `PH_Id`, enriches records with
@@ -68,8 +68,8 @@ each product page in a real Chromium browser (via DrissionPage) and scrapes them
 ## Quick Start
 
 ```bash
-git clone https://github.com/chattingclaire/ProductHunt_WeeklyTops.git
-cd ProductHunt_WeeklyTops
+git clone https://github.com/chattingclaire/ProductHunt-Feishu-Sync.git
+cd ProductHunt-Feishu-Sync
 
 python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
