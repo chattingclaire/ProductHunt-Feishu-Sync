@@ -2,6 +2,16 @@
 
 Automatically scrape the **ProductHunt weekly leaderboard** and sync it to a **Feishu (Lark) Bitable** table — with deduplication, team-member enrichment, and IM notifications.
 
+## Preview
+
+**View 1 — Core fields** (product name, upvotes, tags, Chinese description, team members, company info, PH link):
+
+![Feishu Bitable - Core Fields](assets/demo1.png)
+
+**View 2 — Extended fields** (brief, Chinese summary, full description, followers, forum link, PH ID, last updated, week range):
+
+![Feishu Bitable - Extended Fields](assets/demo2.png)
+
 ---
 
 ## Features
