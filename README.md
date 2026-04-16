@@ -25,36 +25,87 @@ Automatically scrape the **ProductHunt weekly leaderboard** and sync it to a **F
 
 - **Auto-sync** — runs daily at 08:00 (Asia/Shanghai) via APScheduler; or run once on demand
 - **Cloudflare bypass** — uses [DrissionPage](https://github.com/g1879/DrissionPage) (real Chromium) to handle JS challenges
-- **Apollo SSR parsing** — extracts structured product data directly from ProductHunt's internal Apollo cache
 - **Feishu Bitable integration** — creates new records or updates existing ones, deduplicated by `PH_Id`
-- **Team member scraper** — enriches records with founder / team info by clicking through product pages
 - **IM notification** — sends a Feishu chat message when each sync completes
 - **Proxy support** — respects `http_proxy` / `https_proxy` / `all_proxy` env vars
+
+---
+
+## How Data Is Collected
+
+Data is collected in **two stages**:
+
+### Stage 1 — ProductHunt Weekly Leaderboard (Apollo SSR JSON)
+
+The weekly leaderboard page embeds a full Apollo SSR data snapshot. The script reads this JSON directly — no unofficial API key required.
+
+Fields populated from this source:
+
+| Feishu Field | Source | Notes |
+|---|---|---|
+| `Product_Name` | `name` | Product name |
+| `Brief` | `tagline` | One-line tagline |
+| `Description` | `description` | Full product description |
+| `Upvote` | `votesCount` | Weekly upvote count |
+| `Launch_tags` | `topics` | Category tags (e.g. AI, Productivity) |
+| `team_members` | `makers[]` | Maker names from leaderboard data |
+| `PH_Link` | `url` | Product Hunt product URL |
+| `Forum` | derived | Link to the PH discussion thread |
+| `PH_Id` | `id` | Unique product ID, used for deduplication |
+| `Week_Range` | computed | ISO week string, e.g. `2025-W44` |
+| `Last_Updated` | computed | Timestamp of the sync run |
+
+### Stage 2 — Individual Product Pages (DrissionPage)
+
+For fields that are **not available** in the leaderboard data, the script opens each product page in a real Chromium browser (via DrissionPage) and scrapes them directly.
+
+Fields populated from this source:
+
+| Feishu Field | Where scraped | Notes |
+|---|---|---|
+| `Followers` | Product main page | Follower count, e.g. `5.2K` |
+| `Company_Info` | Product main page → Company Info sidebar | Official website URL |
+| `team_members` *(enriched)* | `/makers` sub-page | Full team member list; overwrites the leaderboard value if richer |
+
+> The standalone script `scrape_team_drission.py` can be run independently to re-scrape team members for existing Bitable records at any time.
 
 ---
 
 ## Architecture
 
 ```
-ProductHunt weekly page
-        │
-        ▼ DrissionPage (Chromium, bypasses Cloudflare)
-  Apollo SSR JSON
-        │
-        ▼ parse fields
-  [name, tagline, votes, URL, makers, ...]
-        │
-        ├──▶ Feishu Bitable  (upsert by PH_Id)
-        │
-        └──▶ Feishu IM notification
-             (sent after every sync)
-
-(optional) scrape_team_drission.py
-        │
-        ▼ DrissionPage (click "Team" tab)
-  team member names
-        │
-        └──▶ Feishu Bitable  (update team_members field)
+┌─────────────────────────────────────────┐
+│  Stage 1: Weekly Leaderboard Page       │
+│                                         │
+│  producthunt.com/leaderboard/weekly/…   │
+│          │                              │
+│          ▼ DrissionPage (Chromium)      │
+│    Apollo SSR JSON                      │
+│          │                              │
+│          ▼ parse                        │
+│  Product_Name, Brief, Description,      │
+│  Upvote, Launch_tags, team_members,     │
+│  PH_Link, Forum, PH_Id, Week_Range      │
+└─────────────────┬───────────────────────┘
+                  │
+┌─────────────────▼───────────────────────┐
+│  Stage 2: Individual Product Pages      │
+│                                         │
+│  producthunt.com/products/<slug>        │
+│          │                              │
+│          ▼ DrissionPage (Chromium)      │
+│  Followers, Company_Info                │
+│          │                              │
+│  producthunt.com/products/<slug>/makers │
+│          ▼                              │
+│  team_members (full list)               │
+└─────────────────┬───────────────────────┘
+                  │
+                  ▼
+        Feishu Bitable  (upsert by PH_Id)
+                  │
+                  ▼
+        Feishu IM notification
 ```
 
 ---
@@ -247,11 +298,47 @@ PRs and issues welcome! If ProductHunt changes its page structure and parsing br
 
 - **定时自动同步** — 每天 08:00（Asia/Shanghai）自动运行，也支持手动触发
 - **绕过 Cloudflare** — 使用 [DrissionPage](https://github.com/g1879/DrissionPage)（真实 Chromium 内核）处理 JS 挑战
-- **Apollo SSR 解析** — 直接从 ProductHunt 内置 Apollo 缓存中提取结构化数据
 - **飞书多维表格集成** — 按 `PH_Id` 去重，自动新增或更新记录
-- **团队成员爬取** — 独立脚本，点击产品页面的 Team 标签抓取创始人 / 团队信息
 - **IM 消息通知** — 每次同步完成后发送飞书消息提醒
 - **代理支持** — 读取 `http_proxy` / `https_proxy` / `all_proxy` 环境变量
+
+---
+
+## 数据采集方式
+
+数据分 **两个阶段** 采集：
+
+### 阶段一：PH 周榜页面的 Apollo SSR JSON
+
+周榜页面内嵌了完整的 Apollo SSR 数据快照，脚本直接读取该 JSON，无需申请任何非官方 API Key。
+
+从此来源获取的字段：
+
+| 飞书字段 | 原始字段 | 说明 |
+|---|---|---|
+| `Product_Name` | `name` | 产品名称 |
+| `Brief` | `tagline` | 一句话 tagline |
+| `Description` | `description` | 完整产品描述 |
+| `Upvote` | `votesCount` | 本周票数 |
+| `Launch_tags` | `topics` | 分类标签（如 AI、Productivity） |
+| `team_members` | `makers[]` | 榜单中显示的 Maker 名称 |
+| `PH_Link` | `url` | ProductHunt 产品链接 |
+| `Forum` | 计算得出 | PH 讨论帖链接 |
+| `PH_Id` | `id` | 产品唯一 ID，用于去重 |
+| `Week_Range` | 计算得出 | ISO 周次，如 `2025-W44` |
+| `Last_Updated` | 计算得出 | 本次同步时间戳 |
+
+### 阶段二：产品独立页面（DrissionPage 爬取）
+
+以下字段在周榜数据中**不存在**，需用 DrissionPage 打开真实 Chromium 浏览器，逐一访问每个产品页面抓取：
+
+| 飞书字段 | 抓取位置 | 说明 |
+|---|---|---|
+| `Followers` | 产品主页 | 关注者数量，如 `5.2K` |
+| `Company_Info` | 产品主页 → Company Info 侧边栏 | 官网链接 |
+| `team_members`（补充） | 产品 `/makers` 子页面 | 完整团队成员列表，比榜单数据更全 |
+
+> 独立脚本 `scrape_team_drission.py` 可随时单独运行，对多维表格中已有记录补充爬取团队成员信息。
 
 ---
 
