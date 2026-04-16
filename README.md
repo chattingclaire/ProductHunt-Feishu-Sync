@@ -9,6 +9,8 @@
 
 Scrape any **ProductHunt leaderboard** (weekly by default) and sync every product into a **Feishu (Lark) Bitable** table — auto-dedup, team enrichment, and IM notifications.
 
+![Demo](assets/demo.gif)
+
 ## Quick Start
 
 **1. Install the Claude Code skill**
@@ -34,7 +36,9 @@ FEISHU_RECEIVER_OPEN_ID=...
 PH_COOKIES=...             # Chrome → F12 → Application → Cookies → copy all
 ```
 
-**3. Create Feishu Bitable fields** (case-sensitive)
+**3. Create Feishu Bitable fields**
+
+Download [`assets/feishu_bitable_template.xlsx`](assets/feishu_bitable_template.xlsx) and import it into your Bitable — all 13 fields are pre-defined. Or create them manually (names are case-sensitive):
 
 `PH_Id` · `Product_Name` · `Brief` · `Description` · `Upvote` · `Launch_tags` · `team_members` · `PH_Link` · `Forum` · `Followers` · `Company_Info` · `Week_Range` · `Last_Updated`
 
@@ -157,7 +161,9 @@ FEISHU_RECEIVER_OPEN_ID=...
 PH_COOKIES=...             # Chrome → F12 → Application → Cookies → 全部复制
 ```
 
-**3. 建飞书多维表格字段**（大小写完全一致）
+**3. 建飞书多维表格字段**
+
+下载 [`assets/feishu_bitable_template.xlsx`](assets/feishu_bitable_template.xlsx) 导入飞书多维表格，13 个字段自动创建好。或手动建（名称大小写完全一致）：
 
 `PH_Id` · `Product_Name` · `Brief` · `Description` · `Upvote` · `Launch_tags` · `team_members` · `PH_Link` · `Forum` · `Followers` · `Company_Info` · `Week_Range` · `Last_Updated`
 

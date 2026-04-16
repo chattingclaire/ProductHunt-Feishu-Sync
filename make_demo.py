@@ -20,10 +20,13 @@ start  = time.time()
 
 print(f"▶  Recording {TIMEOUT}s demo…\n")
 
+env = os.environ.copy()
+env["PYTHONUNBUFFERED"] = "1"
+
 proc = subprocess.Popen(
-    [sys.executable, SCRIPT, "--once"],
+    [sys.executable, "-u", SCRIPT, "--once"],
     stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-    text=True, bufsize=1, cwd=PROJECT
+    text=True, bufsize=1, cwd=PROJECT, env=env
 )
 
 try:
