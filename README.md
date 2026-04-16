@@ -9,6 +9,24 @@
 
 Automatically scrape the **ProductHunt weekly leaderboard** and sync it to a **Feishu (Lark) Bitable** table — with deduplication, team-member enrichment, and IM notifications.
 
+## Claude Code Skill
+
+A ready-to-use Claude Code skill is included in this repo. Once installed, Claude will automatically know how to run syncs, configure the project, and debug DrissionPage selectors whenever you describe a PH/Feishu task.
+
+**Install:**
+```bash
+claude skill install producthunt-feishu-sync.skill
+```
+
+After installing, Claude triggers on phrases like:
+- "run the PH weekly sync"
+- "PH没同步 / 飞书没更新"
+- "scrape ProductHunt leaderboard"
+- "team members aren't showing up"
+- "Cloudflare 403 on the scraper"
+
+---
+
 ## Preview
 
 **View 1 — Core fields** (product name, upvotes, tags, Chinese description, team members, company info, PH link):
@@ -326,6 +344,23 @@ PRs and issues welcome! If ProductHunt changes its page structure and parsing br
 # 中文
 
 自动抓取 **ProductHunt 每周榜单**，同步到**飞书多维表格**，支持去重、团队成员补充爬取和 IM 消息通知。
+
+## Claude Code Skill
+
+仓库内含一个开箱即用的 Claude Code skill 文件。安装后，只要你描述 PH/飞书相关的任务，Claude 会自动知道怎么运行同步、配置项目、调试 DrissionPage 选择器。
+
+**安装方式：**
+```bash
+claude skill install producthunt-feishu-sync.skill
+```
+
+安装后，以下表达都会触发 skill：
+- "run the PH weekly sync" / "重新跑一下周榜"
+- "PH 没同步" / "飞书没更新" / "抓不到数据"
+- "team members aren't showing up"
+- "Cloudflare 403 on the scraper"
+
+---
 
 ## 效果预览
 
