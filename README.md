@@ -1,4 +1,4 @@
-# ProductHunt Weekly Tops → Feishu Bitable Sync
+# ProductHunt Weekly Tops → Feishu Bitable
 
 [English](#english) | [中文](#中文)
 
@@ -7,65 +7,41 @@
 <a name="english"></a>
 # English
 
-Automatically scrape the **ProductHunt weekly leaderboard** and sync it to a **Feishu (Lark) Bitable** table — with deduplication, team-member enrichment, and IM notifications.
+Automatically scrape the **ProductHunt weekly leaderboard** and sync every product into a **Feishu (Lark) Bitable** table — deduplication, team-member enrichment, and IM notifications included.
+
+**917 records synced across 40+ weeks. Zero duplicates.**
 
 ## Claude Code Skill
 
-A ready-to-use Claude Code skill is included in this repo. Once installed, Claude will automatically know how to run syncs, configure the project, and debug DrissionPage selectors whenever you describe a PH/Feishu task.
+A ready-to-use Claude Code skill ships with this repo. Install it once and your agent can run syncs, configure credentials, and debug scraping issues on its own.
 
-**Install:**
 ```bash
 claude skill install producthunt-feishu-sync.skill
 ```
 
-After installing, Claude triggers on phrases like:
-- "run the PH weekly sync"
-- "PH没同步 / 飞书没更新"
-- "scrape ProductHunt leaderboard"
-- "team members aren't showing up"
-- "Cloudflare 403 on the scraper"
-
----
-
-## Demo
-
-![Sync running](assets/demo.gif)
-
-> Terminal recording of a full sync run — Stage 1 fetches the weekly leaderboard via Apollo SSR, Stage 2 enriches each product with Followers / Company Info / team members via DrissionPage.
+Triggers automatically on: `"run the PH weekly sync"` · `"PH没同步"` · `"飞书没更新"` · `"team members抓不到"` · `"Cloudflare 403"`
 
 ---
 
 ## Preview
 
-**View 1 — Core fields** (product name, upvotes, tags, Chinese description, team members, company info, PH link):
+**Core fields** — product name, upvotes, tags, Chinese description, team members, company info, PH link:
 
 ![Feishu Bitable - Core Fields](assets/demo1.png)
 
-**View 2 — Extended fields** (brief, Chinese summary, full description, followers, forum link, PH ID, last updated, week range):
+**Extended fields** — brief, full description, followers, forum link, PH ID, last updated, week range:
 
 ![Feishu Bitable - Extended Fields](assets/demo2.png)
 
 ---
 
-## Features
-
-- **Auto-sync** — runs daily at 08:00 (Asia/Shanghai) via APScheduler; or run once on demand
-- **Cloudflare bypass** — uses [DrissionPage](https://github.com/g1879/DrissionPage) (real Chromium) to handle JS challenges
-- **Feishu Bitable integration** — creates new records or updates existing ones, deduplicated by `PH_Id`
-- **IM notification** — sends a Feishu chat message when each sync completes
-- **Proxy support** — respects `http_proxy` / `https_proxy` / `all_proxy` env vars
-
----
-
-## How Data Is Collected
+## How It Works
 
 Data is collected in **two stages**:
 
-### Stage 1 — ProductHunt Weekly Leaderboard (Apollo SSR JSON)
+### Stage 1 — ProductHunt Weekly Page (Apollo SSR JSON)
 
-The weekly leaderboard page embeds a full Apollo SSR data snapshot. The script reads this JSON directly — no unofficial API key required.
-
-Fields populated from this source:
+The weekly leaderboard page embeds a full Apollo data snapshot. The script reads this JSON directly — **no API key required**.
 
 | Feishu Field | Source | Notes |
 |---|---|---|
@@ -73,266 +49,153 @@ Fields populated from this source:
 | `Brief` | `tagline` | One-line tagline |
 | `Description` | `description` | Full product description |
 | `Upvote` | `votesCount` | Weekly upvote count |
-| `Launch_tags` | `topics` | Category tags (e.g. AI, Productivity) |
-| `team_members` | `makers[]` | Maker names from leaderboard data |
-| `PH_Link` | `url` | Product Hunt product URL |
-| `Forum` | derived | Link to the PH discussion thread |
-| `PH_Id` | `id` | Unique product ID, used for deduplication |
-| `Week_Range` | computed | ISO week string, e.g. `2025-W44` |
-| `Last_Updated` | computed | Timestamp of the sync run |
+| `Launch_tags` | `topics` | Category tags (AI, Productivity, …) |
+| `team_members` | `makers[]` | Maker names from leaderboard |
+| `PH_Link` | `url` | Product Hunt URL |
+| `Forum` | derived | PH discussion thread link |
+| `PH_Id` | `id` | Unique ID — deduplication key |
+| `Week_Range` | computed | ISO week, e.g. `2025-W44` |
+| `Last_Updated` | computed | Sync timestamp |
 
 ### Stage 2 — Individual Product Pages (DrissionPage)
 
-For fields that are **not available** in the leaderboard data, the script opens each product page in a real Chromium browser (via DrissionPage) and scrapes them directly.
+Three fields are not in the leaderboard data. The script opens each product page in a real Chromium browser to scrape them:
 
-Fields populated from this source:
+| Feishu Field | Scraped From |
+|---|---|
+| `Followers` | Product main page — follower count |
+| `Company_Info` | Product main page → "Company Info" sidebar |
+| `team_members` *(enriched)* | `/makers` sub-page — full team list |
 
-| Feishu Field | Where scraped | Notes |
-|---|---|---|
-| `Followers` | Product main page | Follower count, e.g. `5.2K` |
-| `Company_Info` | Product main page → Company Info sidebar | Official website URL |
-| `team_members` *(enriched)* | `/makers` sub-page | Full team member list; overwrites the leaderboard value if richer |
-
-> The standalone script `scrape_team_drission.py` can be run independently to re-scrape team members for existing Bitable records at any time.
+> `scrape_team_drission.py` can re-run Stage 2 independently on existing records at any time.
 
 ---
 
 ## Architecture
 
 ```
-┌─────────────────────────────────────────┐
-│  Stage 1: Weekly Leaderboard Page       │
-│                                         │
-│  producthunt.com/leaderboard/weekly/…   │
-│          │                              │
-│          ▼ DrissionPage (Chromium)      │
-│    Apollo SSR JSON                      │
-│          │                              │
-│          ▼ parse                        │
-│  Product_Name, Brief, Description,      │
-│  Upvote, Launch_tags, team_members,     │
-│  PH_Link, Forum, PH_Id, Week_Range      │
-└─────────────────┬───────────────────────┘
-                  │
-┌─────────────────▼───────────────────────┐
-│  Stage 2: Individual Product Pages      │
-│                                         │
-│  producthunt.com/products/<slug>        │
-│          │                              │
-│          ▼ DrissionPage (Chromium)      │
-│  Followers, Company_Info                │
-│          │                              │
-│  producthunt.com/products/<slug>/makers │
-│          ▼                              │
-│  team_members (full list)               │
-└─────────────────┬───────────────────────┘
-                  │
-                  ▼
-        Feishu Bitable  (upsert by PH_Id)
-                  │
-                  ▼
-        Feishu IM notification
+producthunt.com/leaderboard/weekly/…
+        │
+        ▼  DrissionPage (Chromium, bypasses Cloudflare)
+   Apollo SSR JSON
+        │
+        ▼  parse
+   Product_Name · Brief · Description · Upvote
+   Launch_tags · team_members · PH_Link · PH_Id …
+        │
+        ▼  per-product pages (Stage 2)
+   Followers · Company_Info · team_members (enriched)
+        │
+        ├──▶  Feishu Bitable  (upsert by PH_Id)
+        └──▶  Feishu IM notification
 ```
-
----
-
-## Prerequisites
-
-| Requirement | Version |
-|---|---|
-| Python | 3.9+ |
-| Chrome / Chromium | installed locally |
-| Feishu (Lark) developer app | with Bitable & IM permissions |
-| ProductHunt account | optional (cookies help bypass 403) |
 
 ---
 
 ## Setup
 
-### 1. Clone & install
+**Prerequisites:** Python 3.9+, Chrome installed locally, Feishu developer app (Bitable + Message permissions)
 
 ```bash
 git clone https://github.com/chattingclaire/ProductHunt_WeeklyTops.git
 cd ProductHunt_WeeklyTops
 
-python -m venv .venv
-source .venv/bin/activate   # Windows: .venv\Scripts\activate
-
+python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
-```
 
-### 2. Configure environment variables
-
-```bash
 cp .env.example .env
-# then edit .env with your credentials
+# fill in your credentials (see table below)
 ```
+
+### Environment Variables
 
 | Variable | Required | Description |
 |---|---|---|
 | `FEISHU_APP_ID` | Yes | Feishu / Lark app ID |
 | `FEISHU_APP_SECRET` | Yes | Feishu / Lark app secret |
-| `FEISHU_TABLE_APP_ID` | Yes | Bitable app token (starts with `BAS...`) |
+| `FEISHU_TABLE_APP_ID` | Yes | Bitable app token (`BAS…`) |
 | `FEISHU_TABLE_ID` | Yes | Table ID inside the Bitable |
-| `FEISHU_RECEIVER_OPEN_ID` | Yes | Open ID of the IM notification recipient |
-| `PH_WEEKLY_URL` | No | Override the weekly URL; omit to auto-compute |
-| `PH_WEEK_OFFSET` | No | Integer offset from current week (`-1` = last week) |
-| `PH_BEARER_TOKEN` | No | ProductHunt Bearer token (legacy fallback, not needed) |
-| `PH_COOKIES` | No | Cookie string — strongly recommended to avoid 403 |
+| `FEISHU_RECEIVER_OPEN_ID` | Yes | IM notification recipient Open ID |
+| `PH_COOKIES` | Recommended | Cookie string — prevents Cloudflare 403 |
+| `PH_WEEK_OFFSET` | No | `-1` = last week, `0` = this week |
+| `PH_WEEKLY_URL` | No | Override weekly URL directly |
 | `TIMEZONE` | No | Default `Asia/Shanghai` |
-| `ENABLE_TEAM_SCRAPER` | No | Set `true` to run team scraper after main sync |
-| `http_proxy` | No | HTTP proxy (e.g. `http://127.0.0.1:7890`) |
-| `https_proxy` | No | HTTPS proxy |
+| `ENABLE_TEAM_SCRAPER` | No | `true` = auto-run team enrichment after sync |
+| `http_proxy` / `https_proxy` | No | e.g. `http://127.0.0.1:7890` |
 
-### 3. Get ProductHunt cookies (recommended)
+### Getting ProductHunt Cookies
 
-Cookies let DrissionPage bypass Cloudflare rate limits:
+Chrome → F12 → Application → Cookies → `https://www.producthunt.com` → copy all as `key1=value1; key2=value2` → paste as `PH_COOKIES=…`
 
-1. Open [producthunt.com](https://www.producthunt.com) in Chrome and log in
-2. Press `F12` → **Application** tab → **Cookies** → `https://www.producthunt.com`
-3. Copy all cookies in the format `key1=value1; key2=value2`
-4. Paste as `PH_COOKIES=...` in your `.env`
+Key cookies: `_producthunt_session`, `cf_clearance`, `__cf_bm`
 
-Key cookies to look for: `_producthunt_session`, `cf_clearance`, `__cf_bm`
+### Feishu Bitable Fields
 
-### 4. Set up Feishu Bitable
+Create these fields (names are **case-sensitive**):
 
-Your Bitable table should have (at minimum) these fields:
-
-| Field name | Type | Notes |
-|---|---|---|
-| `PH_Id` | Text | Unique product ID — used for deduplication |
-| `Product_Name` | Text | Product name |
-| `Brief` | Text | One-line tagline |
-| `Upvote` | Number | Upvote count |
-| `PH_Link` | URL | Product Hunt link |
-| `Week_Range` | Text | ISO week string, e.g. `2025-W44` |
-| `team_members` | Text | Populated by team scraper (optional) |
+`PH_Id` · `Product_Name` · `Brief` · `Description` · `Upvote` · `Launch_tags` · `team_members` · `PH_Link` · `Forum` · `Followers` · `Company_Info` · `Week_Range` · `Last_Updated`
 
 ---
 
 ## Usage
 
-### Run once immediately
-
 ```bash
+# Run once immediately
 python wokflow.py --once
-```
 
-### Start the daily scheduler (08:00 Asia/Shanghai)
-
-```bash
+# Daily scheduler (08:00 Asia/Shanghai)
 python wokflow.py
-```
 
-### Scrape team members for existing records
-
-```bash
-# Dry run — print results without writing to Feishu
-python scrape_team_drission.py --dry-run
-
-# Process up to 20 records with empty team_members
-python scrape_team_drission.py --limit 20
-
-# Process all
-python scrape_team_drission.py
-```
-
-### Fetch a specific week
-
-```bash
-PH_WEEK_OFFSET=-1 python wokflow.py --once   # last week
+# Last week / specific week
+PH_WEEK_OFFSET=-1 python wokflow.py --once
 PH_WEEKLY_URL=https://www.producthunt.com/leaderboard/weekly/2025/10 python wokflow.py --once
-```
 
----
-
-## Project Structure
-
-```
-.
-├── wokflow.py                # Main workflow: fetch PH → sync Feishu
-├── scrape_team_drission.py   # Team member enrichment via DrissionPage
-├── scrape_empty_records.py   # Re-process records missing data
-├── update_from_weekly.py     # Utility to back-fill weekly data
-├── import_team_members.py    # Import team data from local JSON
-├── requirements.txt          # Python dependencies
-├── .env.example              # Environment variable template
-└── assets/                   # README screenshots
-```
-
----
-
-## Dependencies
-
-```
-requests
-APScheduler
-python-dotenv
-pytz
-DrissionPage>=4.0.0
+# Enrich team members for existing records
+python scrape_team_drission.py --dry-run     # preview only
+python scrape_team_drission.py --limit 20    # up to 20 records
+python scrape_team_drission.py               # all records
 ```
 
 ---
 
 ## Page Structure & Maintenance
 
-ProductHunt occasionally updates its frontend. If DrissionPage stops extracting certain fields, verify the current page structure matches what the script expects.
+PH occasionally updates its frontend. If Stage 2 fields stop populating, verify the selectors below still match the current page using Chrome DevTools.
 
-### Followers
+| Field | Selector | Verify On |
+|---|---|---|
+| `Followers` | `css:p.text-14.font-medium.text-gray-700` (contains "X followers") | Any product page |
+| `Company_Info` | `text:Company Info` → `css:a[class*="stroke-gray-900"][target="_blank"]` | Product page with a website |
+| `team_members` | `css:a[href$="/makers"]` → `css:a[href^="/@"].font-semibold` | `/products/<slug>/makers` |
 
-**Script looks for:** a `<p>` tag with classes `text-14 font-medium text-gray-700` containing text like `"5.2K followers"`
-
-```
-Selector: css:p.text-14.font-medium.text-gray-700
-Fallback: regex search for r"([\d.]+[KkMm]?)\s*followers?" anywhere in page HTML
-```
-
-**How to verify:** Open any PH product page in Chrome → DevTools → inspect the follower count element. Check that it's still a `<p>` tag with those classes. If the class names changed, update `FOLLOWERS_P_TAG_RE` (line ~121 in `wokflow.py`) and the CSS selector (line ~837).
-
----
-
-### Company Info
-
-**Script looks for:** a section headed by the text `"Company Info"`, then the first `<a>` tag with class containing `stroke-gray-900` and `target="_blank"` nearby.
-
-```
-Step 1 — find heading:  text:Company Info
-Step 2 — find link:     css:a[class*="stroke-gray-900"][target="_blank"]
-```
-
-**How to verify:** Open a product page that has a website listed → DevTools → find the "Company Info" sidebar block. Check that the heading still contains the literal text `"Company Info"` and that the website link `<a>` still has `stroke-gray-900` in its class. If the heading text or class changed, update the selectors in `scrape_product_page_with_drission()`.
-
----
-
-### Team Members
-
-**Script navigates to the `/makers` sub-page**, then looks for user profile links.
-
-```
-Step 1 — find nav link:    css:a[href$="/makers"]
-         (or via More menu: text:More → then a[href$="/makers"])
-Step 2 — extract members:  css:a[href^="/@"].font-semibold
-Fallback:                  css:a[href^="/@"]  (broader, more false positives)
-```
-
-**How to verify:** Open `https://www.producthunt.com/products/<any-product>/makers` in Chrome → DevTools → inspect the team member name links. They should be `<a>` tags with `href` starting with `/@` and class `font-semibold`. If the class changed, update the selector in `scrape_product_page_with_drission()` (line ~924) and `scrape_team_drission.py` (line ~425).
+If a selector breaks: update it in `wokflow.py` (Stage 2 function) **and** `scrape_team_drission.py`.
 
 ---
 
 ## Troubleshooting
 
-**Cloudflare 403 / challenge loop**
-→ Add `PH_COOKIES` to `.env`. Make sure `cf_clearance` is included and fresh.
+| Problem | Fix |
+|---|---|
+| Cloudflare 403 | Add fresh `PH_COOKIES` (especially `cf_clearance`) |
+| Field missing in Feishu | Create the field — names are case-sensitive |
+| Feishu auth error | Verify app ID/secret; enable Bitable + Message permissions |
+| Records not deduplicating | Confirm `PH_Id` field exists |
+| DrissionPage can't find Chrome | Install Chrome locally |
+| `team_members` empty | Check DrissionPage selectors (PH may have updated page) |
 
-**DrissionPage can't find Chrome**
-→ Install Chrome, or set `CHROMIUM_PATH` to your browser binary.
+---
 
-**Feishu token error**
-→ Verify `FEISHU_APP_ID` / `FEISHU_APP_SECRET` and that the app has *Bitable* and *Message* permissions.
+## Project Structure
 
-**Records not deduplicating**
-→ Check that `PH_Id` field exists in your table and contains the correct product IDs.
+```
+wokflow.py                 # Main workflow: Stage 1 + Stage 2 + Feishu sync
+scrape_team_drission.py    # Standalone Stage 2 team enrichment
+scrape_empty_records.py    # Re-process records missing data
+update_from_weekly.py      # Back-fill historical weeks
+requirements.txt
+.env.example               # Credential template
+producthunt-feishu-sync.skill  # Claude Code skill (install with claude skill install)
+```
 
 ---
 
@@ -344,59 +207,38 @@ MIT — see [LICENSE](LICENSE).
 
 ## Contributing
 
-PRs and issues welcome! If ProductHunt changes its page structure and parsing breaks, please open an issue with the new HTML snippet.
+PRs and issues welcome. If PH updates its page structure and scraping breaks, open an issue with the relevant HTML snippet.
 
 ---
 
 <a name="中文"></a>
 # 中文
 
-自动抓取 **ProductHunt 每周榜单**，同步到**飞书多维表格**，支持去重、团队成员补充爬取和 IM 消息通知。
+自动抓取 **ProductHunt 每周榜单**，将每个产品同步到**飞书多维表格**，支持去重、团队成员补充爬取和 IM 消息通知。
+
+**已同步 40+ 周、917 条记录，零重复。**
 
 ## Claude Code Skill
 
-仓库内含一个开箱即用的 Claude Code skill 文件。安装后，只要你描述 PH/飞书相关的任务，Claude 会自动知道怎么运行同步、配置项目、调试 DrissionPage 选择器。
+仓库内含开箱即用的 Claude Code skill。装上之后，agent 可以自主完成同步、配置和调试，不需要你手动操作。
 
-**安装方式：**
 ```bash
 claude skill install producthunt-feishu-sync.skill
 ```
 
-安装后，以下表达都会触发 skill：
-- "run the PH weekly sync" / "重新跑一下周榜"
-- "PH 没同步" / "飞书没更新" / "抓不到数据"
-- "team members aren't showing up"
-- "Cloudflare 403 on the scraper"
-
----
-
-## 运行演示
-
-![同步运行过程](assets/demo.gif)
-
-> 完整同步的终端录屏 — Stage 1 通过 Apollo SSR JSON 拉取周榜，Stage 2 用 DrissionPage 逐个产品页面抓取 Followers / Company Info / team members。
+自动触发词：`"重新跑一下周榜"` · `"PH没同步"` · `"飞书没更新"` · `"team members抓不到"` · `"403报错"`
 
 ---
 
 ## 效果预览
 
-**视图一 — 核心字段**（产品名、票数、标签、中文描述、团队成员、公司信息、PH 链接）：
+**核心字段** — 产品名、票数、标签、中文描述、团队成员、公司信息、PH 链接：
 
 ![飞书多维表格 - 核心字段](assets/demo1.png)
 
-**视图二 — 扩展字段**（Brief、功能简介、完整描述、Followers、论坛链接、PH ID、更新时间、周次）：
+**扩展字段** — Brief、完整描述、Followers、论坛链接、PH ID、更新时间、周次：
 
 ![飞书多维表格 - 扩展字段](assets/demo2.png)
-
----
-
-## 功能特点
-
-- **定时自动同步** — 每天 08:00（Asia/Shanghai）自动运行，也支持手动触发
-- **绕过 Cloudflare** — 使用 [DrissionPage](https://github.com/g1879/DrissionPage)（真实 Chromium 内核）处理 JS 挑战
-- **飞书多维表格集成** — 按 `PH_Id` 去重，自动新增或更新记录
-- **IM 消息通知** — 每次同步完成后发送飞书消息提醒
-- **代理支持** — 读取 `http_proxy` / `https_proxy` / `all_proxy` 环境变量
 
 ---
 
@@ -406,223 +248,126 @@ claude skill install producthunt-feishu-sync.skill
 
 ### 阶段一：PH 周榜页面的 Apollo SSR JSON
 
-周榜页面内嵌了完整的 Apollo SSR 数据快照，脚本直接读取该 JSON，无需申请任何非官方 API Key。
-
-从此来源获取的字段：
+周榜页面内嵌了完整的 Apollo 数据快照，脚本直接读取，**无需任何 API Key**。
 
 | 飞书字段 | 原始字段 | 说明 |
 |---|---|---|
 | `Product_Name` | `name` | 产品名称 |
 | `Brief` | `tagline` | 一句话 tagline |
-| `Description` | `description` | 完整产品描述 |
+| `Description` | `description` | 完整描述 |
 | `Upvote` | `votesCount` | 本周票数 |
-| `Launch_tags` | `topics` | 分类标签（如 AI、Productivity） |
-| `team_members` | `makers[]` | 榜单中显示的 Maker 名称 |
+| `Launch_tags` | `topics` | 分类标签 |
+| `team_members` | `makers[]` | 榜单中的 Maker 名称 |
 | `PH_Link` | `url` | ProductHunt 产品链接 |
-| `Forum` | 计算得出 | PH 讨论帖链接 |
-| `PH_Id` | `id` | 产品唯一 ID，用于去重 |
-| `Week_Range` | 计算得出 | ISO 周次，如 `2025-W44` |
-| `Last_Updated` | 计算得出 | 本次同步时间戳 |
+| `Forum` | 计算 | PH 讨论帖链接 |
+| `PH_Id` | `id` | 唯一 ID，去重用 |
+| `Week_Range` | 计算 | ISO 周次，如 `2025-W44` |
+| `Last_Updated` | 计算 | 同步时间戳 |
 
 ### 阶段二：产品独立页面（DrissionPage 爬取）
 
-以下字段在周榜数据中**不存在**，需用 DrissionPage 打开真实 Chromium 浏览器，逐一访问每个产品页面抓取：
+以下字段在周榜数据中不存在，需用 DrissionPage 打开真实 Chromium 浏览器逐页抓取：
 
-| 飞书字段 | 抓取位置 | 说明 |
-|---|---|---|
-| `Followers` | 产品主页 | 关注者数量，如 `5.2K` |
-| `Company_Info` | 产品主页 → Company Info 侧边栏 | 官网链接 |
-| `team_members`（补充） | 产品 `/makers` 子页面 | 完整团队成员列表，比榜单数据更全 |
-
-> 独立脚本 `scrape_team_drission.py` 可随时单独运行，对多维表格中已有记录补充爬取团队成员信息。
-
----
-
-## 系统要求
-
-| 依赖 | 版本要求 |
+| 飞书字段 | 抓取位置 |
 |---|---|
-| Python | 3.9+ |
-| Chrome / Chromium | 本地已安装 |
-| 飞书开发者应用 | 需开通多维表格 & 消息权限 |
-| ProductHunt 账号 | 可选（有 cookies 更稳定） |
+| `Followers` | 产品主页 — 关注者数量 |
+| `Company_Info` | 产品主页 → Company Info 侧边栏 |
+| `team_members`（补充） | 产品 `/makers` 子页面 — 完整团队列表 |
+
+> `scrape_team_drission.py` 可随时单独运行，为已有记录补充团队成员信息。
 
 ---
 
-## 安装配置
+## 安装使用
 
-### 1. 克隆并安装依赖
+**前置条件：** Python 3.9+、本地已安装 Chrome、飞书开发者应用（需开通多维表格 & 消息权限）
 
 ```bash
 git clone https://github.com/chattingclaire/ProductHunt_WeeklyTops.git
 cd ProductHunt_WeeklyTops
 
-python -m venv .venv
-source .venv/bin/activate   # Windows: .venv\Scripts\activate
-
+python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
-```
 
-### 2. 配置环境变量
-
-```bash
 cp .env.example .env
-# 编辑 .env，填入你的密钥
+# 填入你的密钥
 ```
+
+### 环境变量
 
 | 变量名 | 是否必填 | 说明 |
 |---|---|---|
 | `FEISHU_APP_ID` | 是 | 飞书应用 App ID |
 | `FEISHU_APP_SECRET` | 是 | 飞书应用 App Secret |
-| `FEISHU_TABLE_APP_ID` | 是 | 多维表格 App Token（以 `BAS...` 开头） |
+| `FEISHU_TABLE_APP_ID` | 是 | 多维表格 App Token（`BAS…` 开头） |
 | `FEISHU_TABLE_ID` | 是 | 数据表 ID |
-| `FEISHU_RECEIVER_OPEN_ID` | 是 | IM 通知接收人的 Open ID |
-| `PH_WEEKLY_URL` | 否 | 手动指定周榜 URL，不填则自动计算 |
-| `PH_WEEK_OFFSET` | 否 | 周偏移量，`-1` 表示上一周 |
-| `PH_BEARER_TOKEN` | 否 | PH Bearer Token（旧版备用，一般不需要） |
-| `PH_COOKIES` | 否 | Cookie 字符串，强烈推荐填写以避免 403 |
+| `FEISHU_RECEIVER_OPEN_ID` | 是 | IM 通知接收人 Open ID |
+| `PH_COOKIES` | 强烈推荐 | Cookie 字符串，防 Cloudflare 403 |
+| `PH_WEEK_OFFSET` | 否 | `-1` = 上周，`0` = 本周 |
+| `PH_WEEKLY_URL` | 否 | 直接指定周榜 URL |
 | `TIMEZONE` | 否 | 默认 `Asia/Shanghai` |
-| `ENABLE_TEAM_SCRAPER` | 否 | 设为 `true` 则主同步后自动运行团队爬取 |
-| `http_proxy` | 否 | HTTP 代理，如 `http://127.0.0.1:7890` |
-| `https_proxy` | 否 | HTTPS 代理 |
+| `ENABLE_TEAM_SCRAPER` | 否 | `true` = 主同步后自动补爬团队成员 |
+| `http_proxy` / `https_proxy` | 否 | 如 `http://127.0.0.1:7890` |
 
-### 3. 获取 ProductHunt Cookies（推荐）
+### 获取 PH Cookies
 
-Cookies 可让 DrissionPage 绕过 Cloudflare 频率限制：
+Chrome → F12 → Application → Cookies → `https://www.producthunt.com` → 复制全部，格式 `key1=value1; key2=value2` → 填入 `PH_COOKIES=…`
 
-1. 用 Chrome 打开 [producthunt.com](https://www.producthunt.com) 并登录
-2. 按 `F12` → **Application** 标签 → **Cookies** → `https://www.producthunt.com`
-3. 复制所有 cookies，格式为 `key1=value1; key2=value2`
-4. 粘贴到 `.env` 的 `PH_COOKIES=...`
+重点：`_producthunt_session`、`cf_clearance`、`__cf_bm`
 
-重点关注：`_producthunt_session`、`cf_clearance`、`__cf_bm`
+### 飞书多维表格字段
 
-### 4. 配置飞书多维表格字段
+以下字段名**大小写敏感**，需完全一致：
 
-数据表至少需要以下字段：
-
-| 字段名 | 类型 | 说明 |
-|---|---|---|
-| `PH_Id` | 文本 | 产品唯一 ID，用于去重 |
-| `Product_Name` | 文本 | 产品名称 |
-| `Brief` | 文本 | 一句话描述 |
-| `Upvote` | 数字 | 票数 |
-| `PH_Link` | 链接 | ProductHunt 链接 |
-| `Week_Range` | 文本 | 周次，如 `2025-W44` |
-| `team_members` | 文本 | 由团队爬取脚本填充（可选） |
+`PH_Id` · `Product_Name` · `Brief` · `Description` · `Upvote` · `Launch_tags` · `team_members` · `PH_Link` · `Forum` · `Followers` · `Company_Info` · `Week_Range` · `Last_Updated`
 
 ---
 
-## 使用方法
-
-### 立即执行一次
+## 常用命令
 
 ```bash
+# 立即执行一次
 python wokflow.py --once
-```
 
-### 启动定时任务（每天 08:00）
-
-```bash
+# 启动定时任务（每天 08:00）
 python wokflow.py
-```
 
-### 爬取团队成员信息
-
-```bash
-# 试运行，只打印结果不写入飞书
-python scrape_team_drission.py --dry-run
-
-# 处理最多 20 条 team_members 为空的记录
-python scrape_team_drission.py --limit 20
-
-# 处理全部
-python scrape_team_drission.py
-```
-
-### 抓取指定周次
-
-```bash
-PH_WEEK_OFFSET=-1 python wokflow.py --once   # 上一周
+# 上周 / 指定周
+PH_WEEK_OFFSET=-1 python wokflow.py --once
 PH_WEEKLY_URL=https://www.producthunt.com/leaderboard/weekly/2025/10 python wokflow.py --once
+
+# 补爬团队成员
+python scrape_team_drission.py --dry-run     # 仅预览
+python scrape_team_drission.py --limit 20    # 最多 20 条
+python scrape_team_drission.py               # 全部
 ```
 
 ---
 
-## 项目结构
+## 页面结构维护
 
-```
-.
-├── wokflow.py                # 主流程：抓取 PH → 同步飞书
-├── scrape_team_drission.py   # 团队成员爬取（DrissionPage）
-├── scrape_empty_records.py   # 补充缺失数据的工具脚本
-├── update_from_weekly.py     # 回填历史周数据
-├── import_team_members.py    # 从本地 JSON 导入团队数据
-├── requirements.txt          # Python 依赖
-├── .env.example              # 环境变量模板
-└── assets/                   # README 截图
-```
+PH 会不定期更新前端。如果阶段二字段抓不到，用 Chrome DevTools 对照以下选择器检查当前页面：
 
----
+| 字段 | 选择器 | 检查页面 |
+|---|---|---|
+| `Followers` | `css:p.text-14.font-medium.text-gray-700`（含 "X followers"） | 任意产品页 |
+| `Company_Info` | `text:Company Info` → `css:a[class*="stroke-gray-900"][target="_blank"]` | 有官网的产品页 |
+| `team_members` | `css:a[href$="/makers"]` → `css:a[href^="/@"].font-semibold` | `/products/<slug>/makers` |
 
-## 页面结构维护说明
-
-ProductHunt 会不定期更新前端页面。如果 DrissionPage 某个字段抓不到了，先对照以下说明检查当前页面结构是否还与脚本一致。
-
-### Followers（关注者数量）
-
-**脚本查找的元素：** class 为 `text-14 font-medium text-gray-700` 的 `<p>` 标签，内容格式为 `"5.2K followers"`
-
-```
-主选择器：css:p.text-14.font-medium.text-gray-700
-兜底方案：在整个页面 HTML 中正则匹配 r"([\d.]+[KkMm]?)\s*followers?"
-```
-
-**验证方法：** 用 Chrome 打开任意 PH 产品页 → DevTools → 检查关注者数量元素，确认它仍然是带有上述 class 的 `<p>` 标签。如果 class 名变了，更新 `wokflow.py` 中的 `FOLLOWERS_P_TAG_RE`（约第 121 行）和 CSS 选择器（约第 837 行）。
-
----
-
-### Company Info（官网链接）
-
-**脚本查找的元素：** 页面中文本为 `"Company Info"` 的标题，然后定位其附近 class 含 `stroke-gray-900` 且 `target="_blank"` 的 `<a>` 标签。
-
-```
-第一步 — 找到标题：  text:Company Info
-第二步 — 找到链接：  css:a[class*="stroke-gray-900"][target="_blank"]
-```
-
-**验证方法：** 打开一个有官网的产品页 → DevTools → 找到 "Company Info" 侧边栏区块，确认标题文字仍为 `"Company Info"`，官网链接的 `<a>` 标签 class 仍包含 `stroke-gray-900`。如有变化，更新 `scrape_product_page_with_drission()` 中对应的选择器。
-
----
-
-### Team Members（团队成员）
-
-**脚本先导航到产品的 `/makers` 子页面**，再从中提取成员名称。
-
-```
-第一步 — 找导航链接：  css:a[href$="/makers"]
-         （或通过 More 菜单：text:More → 再找 a[href$="/makers"]）
-第二步 — 提取成员：    css:a[href^="/@"].font-semibold
-兜底方案：             css:a[href^="/@"]（范围更宽，可能有误匹配）
-```
-
-**验证方法：** 用 Chrome 打开 `https://www.producthunt.com/products/<任意产品>/makers` → DevTools → 检查成员名称的链接，确认仍为 `href` 以 `/@` 开头、class 含 `font-semibold` 的 `<a>` 标签。如有变化，同步更新 `wokflow.py`（约第 924 行）和 `scrape_team_drission.py`（约第 425 行）中的选择器。
+选择器失效时，同步更新 `wokflow.py`（阶段二函数）和 `scrape_team_drission.py`。
 
 ---
 
 ## 常见问题
 
-**Cloudflare 403 / 反复出现挑战页面**
-→ 在 `.env` 中添加 `PH_COOKIES`，确保包含 `cf_clearance` 且未过期。
-
-**DrissionPage 找不到 Chrome**
-→ 确认本地已安装 Chrome，或设置 `CHROMIUM_PATH` 指向浏览器可执行文件。
-
-**飞书 Token 报错**
-→ 检查 `FEISHU_APP_ID` / `FEISHU_APP_SECRET` 是否正确，并确认应用已开通多维表格和消息权限。
-
-**记录没有去重**
-→ 确认多维表格中存在 `PH_Id` 字段，且内容与脚本写入的格式一致。
+| 问题 | 解决方法 |
+|---|---|
+| Cloudflare 403 | 补充 `PH_COOKIES`（确保包含 `cf_clearance`） |
+| 飞书字段找不到 | 建立缺失字段，注意大小写 |
+| 飞书 Token 报错 | 检查 App ID/Secret，开通多维表格 + 消息权限 |
+| 记录重复 | 确认 `PH_Id` 字段存在 |
+| DrissionPage 找不到 Chrome | 本地安装 Chrome |
+| `team_members` 为空 | 检查 DrissionPage 选择器 |
 
 ---
 
@@ -634,4 +379,4 @@ MIT — 详见 [LICENSE](LICENSE)。
 
 ## 贡献
 
-欢迎提 PR 和 Issue！如果 ProductHunt 更新了页面结构导致解析失败，请附上新的 HTML 片段开 Issue。
+欢迎 PR 和 Issue。PH 改版导致解析失败时，请附上相关 HTML 片段开 Issue。
