@@ -1631,7 +1631,7 @@ def run_sync() -> None:
     # Optional: Trigger team member scraper async (if enabled)
     if cfg.get("ENABLE_TEAM_SCRAPER"):
         def run_team_scraper():
-            script_path = os.path.join(os.path.dirname(__file__), "scrape_team_members.py")
+            script_path = os.path.join(os.path.dirname(__file__), "scrape_team_drission.py")
             if os.path.exists(script_path):
                 print("[INFO] Starting team member scraper in background...")
                 try:

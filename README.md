@@ -27,6 +27,14 @@ After installing, Claude triggers on phrases like:
 
 ---
 
+## Demo
+
+![Sync running](assets/demo.gif)
+
+> Terminal recording of a full sync run — Stage 1 fetches the weekly leaderboard via Apollo SSR, Stage 2 enriches each product with Followers / Company Info / team members via DrissionPage.
+
+---
+
 ## Preview
 
 **View 1 — Core fields** (product name, upvotes, tags, Chinese description, team members, company info, PH link):
@@ -359,6 +367,14 @@ claude skill install producthunt-feishu-sync.skill
 - "PH 没同步" / "飞书没更新" / "抓不到数据"
 - "team members aren't showing up"
 - "Cloudflare 403 on the scraper"
+
+---
+
+## 运行演示
+
+![同步运行过程](assets/demo.gif)
+
+> 完整同步的终端录屏 — Stage 1 通过 Apollo SSR JSON 拉取周榜，Stage 2 用 DrissionPage 逐个产品页面抓取 Followers / Company Info / team members。
 
 ---
 
