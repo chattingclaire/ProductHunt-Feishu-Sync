@@ -26,6 +26,13 @@ debug_weekly_fail.html
 # Data files (scraped output, may contain PII)
 team_members.json
 
+# Demo recording temp files
+assets/_*.mp4
+assets/_*.gif
+assets/_*.png
+assets/_concat.txt
+assets/demo.cast
+
 # IDE / OS files
 .DS_Store
 .idea/
