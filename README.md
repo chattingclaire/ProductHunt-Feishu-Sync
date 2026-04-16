@@ -249,6 +249,51 @@ DrissionPage>=4.0.0
 
 ---
 
+## Page Structure & Maintenance
+
+ProductHunt occasionally updates its frontend. If DrissionPage stops extracting certain fields, verify the current page structure matches what the script expects.
+
+### Followers
+
+**Script looks for:** a `<p>` tag with classes `text-14 font-medium text-gray-700` containing text like `"5.2K followers"`
+
+```
+Selector: css:p.text-14.font-medium.text-gray-700
+Fallback: regex search for r"([\d.]+[KkMm]?)\s*followers?" anywhere in page HTML
+```
+
+**How to verify:** Open any PH product page in Chrome → DevTools → inspect the follower count element. Check that it's still a `<p>` tag with those classes. If the class names changed, update `FOLLOWERS_P_TAG_RE` (line ~121 in `wokflow.py`) and the CSS selector (line ~837).
+
+---
+
+### Company Info
+
+**Script looks for:** a section headed by the text `"Company Info"`, then the first `<a>` tag with class containing `stroke-gray-900` and `target="_blank"` nearby.
+
+```
+Step 1 — find heading:  text:Company Info
+Step 2 — find link:     css:a[class*="stroke-gray-900"][target="_blank"]
+```
+
+**How to verify:** Open a product page that has a website listed → DevTools → find the "Company Info" sidebar block. Check that the heading still contains the literal text `"Company Info"` and that the website link `<a>` still has `stroke-gray-900` in its class. If the heading text or class changed, update the selectors in `scrape_product_page_with_drission()`.
+
+---
+
+### Team Members
+
+**Script navigates to the `/makers` sub-page**, then looks for user profile links.
+
+```
+Step 1 — find nav link:    css:a[href$="/makers"]
+         (or via More menu: text:More → then a[href$="/makers"])
+Step 2 — extract members:  css:a[href^="/@"].font-semibold
+Fallback:                  css:a[href^="/@"]  (broader, more false positives)
+```
+
+**How to verify:** Open `https://www.producthunt.com/products/<any-product>/makers` in Chrome → DevTools → inspect the team member name links. They should be `<a>` tags with `href` starting with `/@` and class `font-semibold`. If the class changed, update the selector in `scrape_product_page_with_drission()` (line ~924) and `scrape_team_drission.py` (line ~425).
+
+---
+
 ## Troubleshooting
 
 **Cloudflare 403 / challenge loop**
@@ -466,6 +511,51 @@ PH_WEEKLY_URL=https://www.producthunt.com/leaderboard/weekly/2025/10 python wokf
 ├── .env.example              # 环境变量模板
 └── assets/                   # README 截图
 ```
+
+---
+
+## 页面结构维护说明
+
+ProductHunt 会不定期更新前端页面。如果 DrissionPage 某个字段抓不到了，先对照以下说明检查当前页面结构是否还与脚本一致。
+
+### Followers（关注者数量）
+
+**脚本查找的元素：** class 为 `text-14 font-medium text-gray-700` 的 `<p>` 标签，内容格式为 `"5.2K followers"`
+
+```
+主选择器：css:p.text-14.font-medium.text-gray-700
+兜底方案：在整个页面 HTML 中正则匹配 r"([\d.]+[KkMm]?)\s*followers?"
+```
+
+**验证方法：** 用 Chrome 打开任意 PH 产品页 → DevTools → 检查关注者数量元素，确认它仍然是带有上述 class 的 `<p>` 标签。如果 class 名变了，更新 `wokflow.py` 中的 `FOLLOWERS_P_TAG_RE`（约第 121 行）和 CSS 选择器（约第 837 行）。
+
+---
+
+### Company Info（官网链接）
+
+**脚本查找的元素：** 页面中文本为 `"Company Info"` 的标题，然后定位其附近 class 含 `stroke-gray-900` 且 `target="_blank"` 的 `<a>` 标签。
+
+```
+第一步 — 找到标题：  text:Company Info
+第二步 — 找到链接：  css:a[class*="stroke-gray-900"][target="_blank"]
+```
+
+**验证方法：** 打开一个有官网的产品页 → DevTools → 找到 "Company Info" 侧边栏区块，确认标题文字仍为 `"Company Info"`，官网链接的 `<a>` 标签 class 仍包含 `stroke-gray-900`。如有变化，更新 `scrape_product_page_with_drission()` 中对应的选择器。
+
+---
+
+### Team Members（团队成员）
+
+**脚本先导航到产品的 `/makers` 子页面**，再从中提取成员名称。
+
+```
+第一步 — 找导航链接：  css:a[href$="/makers"]
+         （或通过 More 菜单：text:More → 再找 a[href$="/makers"]）
+第二步 — 提取成员：    css:a[href^="/@"].font-semibold
+兜底方案：             css:a[href^="/@"]（范围更宽，可能有误匹配）
+```
+
+**验证方法：** 用 Chrome 打开 `https://www.producthunt.com/products/<任意产品>/makers` → DevTools → 检查成员名称的链接，确认仍为 `href` 以 `/@` 开头、class 含 `font-semibold` 的 `<a>` 标签。如有变化，同步更新 `wokflow.py`（约第 924 行）和 `scrape_team_drission.py`（约第 425 行）中的选择器。
 
 ---
 
